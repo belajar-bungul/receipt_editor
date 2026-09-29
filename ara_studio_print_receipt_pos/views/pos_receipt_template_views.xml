@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Client Action: Receipt Studio -->
+    <record id="action_ara_studio_receipt_designer" model="ir.actions.client">
+        <field name="name">Receipt Studio</field>
+        <field name="tag">ara_studio_receipt_designer</field>
+        <field name="target">main</field>
+    </record>
+
+    <!-- Template List View -->
+    <record id="view_ara_pos_receipt_template_list" model="ir.ui.view">
+        <field name="name">ara.pos.receipt.template.list</field>
+        <field name="model">ara.pos.receipt.template</field>
+        <field name="arch" type="xml">
+            <list string="POS Receipt Templates">
+                <field name="name"/>
+                <field name="paper_width"/>
+                <field name="font_family"/>
+                <field name="font_size_base"/>
+                <field name="pos_config_count" string="Used in POS"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="active" widget="boolean_toggle"/>
+                <button name="action_open_studio" type="object" string="🎨 Open Studio" class="btn-primary btn-sm"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Template Form View -->
+    <record id="view_ara_pos_receipt_template_form" model="ir.ui.view">
+        <field name="name">ara.pos.receipt.template.form</field>
+        <field name="model">ara.pos.receipt.template</field>
+        <field name="arch" type="xml">
+            <form string="POS Receipt Template">
+                <header>
+                    <button name="action_open_studio" type="object" string="🎨 Open Drag &amp; Drop Studio" class="btn-primary" icon="fa-paint-brush"/>
+                    <button name="action_duplicate_template" type="object" string="⧉ Duplicate Template" class="btn-secondary" icon="fa-copy"/>
+                    <button name="action_reset_to_default" type="object" string="↺ Reset to Default" class="btn-secondary" icon="fa-undo" confirm="Are you sure you want to reset this template layout to default settings?"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" type="object" name="action_open_studio" icon="fa-magic">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Visual</span>
+                                <span class="o_stat_text">Studio</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <field name="active" invisible="1"/>
+                    
+                    <div class="oe_title">
+                        <label for="name" string="Receipt Template Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Modern Restaurant 80mm"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Paper Format &amp; Typography">
+                            <field name="paper_width"/>
+                            <field name="font_family"/>
+                            <field name="font_size_base"/>
+                            <field name="line_spacing"/>
+                        </group>
+                        <group string="Logo &amp; Scope">
+                            <field name="show_logo"/>
+                            <field name="logo_width" invisible="not show_logo"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Linked Point of Sale" name="pos_configs">
+                            <field name="pos_config_ids" widget="many2many" options="{'no_create': True, 'no_create_edit': True}">
+                                <list string="Point of Sale">
+                                    <field name="name"/>
+                                    <field name="company_id" groups="base.group_multi_company"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="JSON Configuration (Layout Engine)" name="layout_json_tab">
+                            <div class="alert alert-info" role="alert">
+                                This layout is managed visually through the <b>Drag &amp; Drop Studio</b>. Click the <b>Open Drag &amp; Drop Studio</b> button above to modify your receipt without touching any code.
+                            </div>
+                            <field name="layout_json" widget="ace" options="{'mode': 'json'}"/>
+                        </page>
+                        <page string="Custom CSS (Optional)" name="custom_css_tab">
+                            <div class="alert alert-secondary" role="alert">
+                                Insert optional custom CSS code for advanced font adjustments or specific printer margins.
+                            </div>
+                            <field name="custom_css" placeholder="/* Custom CSS example: */&#10;.ara-custom-receipt { letter-spacing: 0.5px; }"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Template Search View -->
+    <record id="view_ara_pos_receipt_template_search" model="ir.ui.view">
+        <field name="name">ara.pos.receipt.template.search</field>
+        <field name="model">ara.pos.receipt.template</field>
+        <field name="arch" type="xml">
+            <search string="Search Receipt Templates">
+                <field name="name"/>
+                <field name="paper_width"/>
+                <filter string="80mm (Standard)" name="filter_80mm" domain="[('paper_width', '=', '80mm')]"/>
+                <filter string="58mm (Mini)" name="filter_58mm" domain="[('paper_width', '=', '58mm')]"/>
+                <separator/>
+                <filter string="Archived" name="archived" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter string="Paper Width" name="group_paper_width" context="{'group_by': 'paper_width'}"/>
+                    <filter string="Company" name="group_company" context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action Window -->
+    <record id="action_ara_pos_receipt_template" model="ir.actions.act_window">
+        <field name="name">POS Receipt Templates (Studio)</field>
+        <field name="res_model">ara.pos.receipt.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_ara_pos_receipt_template_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create Your First Custom POS Receipt Template!
+            </p>
+            <p>
+                Design and customize your POS receipts visually using intuitive drag &amp; drop without writing any code.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- POS Receipt Studio Menu -->
+    <menuitem id="menu_ara_pos_receipt_template"
+        name="Receipt Studio"
+        parent="point_of_sale.menu_point_config_product"
+        action="action_ara_pos_receipt_template"
+        sequence="25"
+        groups="point_of_sale.group_pos_manager"/>
+</odoo>

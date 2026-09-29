@@ -1,0 +1,1076 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="ara_studio_print_receipt_pos.ReceiptStudio">
+        <div class="ara-receipt-studio">
+
+            <!-- 1. Top Navigation Bar -->
+            <header class="ara-studio-navbar">
+                <div class="nav-brand">
+                    <button class="btn-studio btn-back" t-on-click="backToTemplates" title="Back to Template Form">
+                        <i class="fa fa-arrow-left"/>
+                        <span>Back</span>
+                    </button>
+                    <div class="nav-divider"/>
+                    <div class="brand-badge">
+                        <i class="fa fa-file-text-o"/>
+                        <span>Receipt Studio</span>
+                    </div>
+                    <div class="template-title-container">
+                        <i class="fa fa-pencil text-muted"/>
+                        <input type="text"
+                               class="template-title-input"
+                               t-model="state.template.name"
+                               title="Click to rename template"
+                               placeholder="Template Name..."/>
+                    </div>
+                </div>
+
+                <div class="nav-controls">
+                    <!-- Template Switcher Dropdown -->
+                    <div class="template-select-wrapper">
+                        <i class="fa fa-folder-open-o select-icon text-muted"/>
+                        <select class="form-select form-select-sm template-select"
+                                t-on-change="(ev) => this.loadTemplate(parseInt(ev.target.value))"
+                                t-att-value="state.templateId">
+                            <t t-foreach="state.templatesList" t-as="tmpl" t-key="tmpl.id">
+                                <option t-att-value="tmpl.id" t-out="tmpl.name"/>
+                            </t>
+                        </select>
+                    </div>
+
+                    <!-- Paper Width Toggle (80mm vs 58mm) -->
+                    <div class="width-pill-group" title="Select Thermal Paper Width">
+                        <button type="button"
+                                class="pill-btn"
+                                t-att-class="{ 'active': state.paperWidth === '80mm' }"
+                                t-on-click="() => this.state.paperWidth = '80mm'">
+                            80mm (Standard)
+                        </button>
+                        <button type="button"
+                                class="pill-btn"
+                                t-att-class="{ 'active': state.paperWidth === '58mm' }"
+                                t-on-click="() => this.state.paperWidth = '58mm'">
+                            58mm (Compact)
+                        </button>
+                    </div>
+
+                    <!-- Reset to Default Button with Micro-Animations -->
+                    <button type="button"
+                            class="btn-studio btn-action-reset"
+                            t-att-class="{
+                                'resetting': state.resetState === 'resetting',
+                                'restored': state.resetState === 'success'
+                            }"
+                            t-on-click="resetToDefault"
+                            t-att-disabled="state.resetState === 'resetting'"
+                            title="Reset Layout to Standard Preset">
+                        <t t-if="state.resetState === 'resetting'">
+                            <i class="fa fa-undo fa-spin me-1 spin-reverse"/>
+                            <span>Resetting...</span>
+                        </t>
+                        <t t-elif="state.resetState === 'success'">
+                            <i class="fa fa-check me-1 icon-restored-pop"/>
+                            <span>Restored!</span>
+                        </t>
+                        <t t-else="">
+                            <i class="fa fa-undo me-1 icon-reset-idle"/>
+                            <span>Reset</span>
+                        </t>
+                    </button>
+
+                    <!-- Test Print Button -->
+                    <button type="button"
+                            class="btn-studio btn-action-print"
+                            t-on-click="printTestReceipt"
+                            title="Print Test Receipt to Physical Printer">
+                        <i class="fa fa-print me-1"/>
+                        <span>Test Print</span>
+                    </button>
+
+                    <!-- Save Changes Button with Rich State Animations -->
+                    <button type="button"
+                            class="btn-studio btn-primary-studio"
+                            t-att-class="{
+                                'saving': state.saveState === 'saving',
+                                'saved': state.saveState === 'success'
+                            }"
+                            t-on-click="saveTemplate"
+                            t-att-disabled="state.isSaving">
+                        <span class="btn-glow-shimmer"/>
+                        <!-- State Icons & Labels -->
+                        <t t-if="state.saveState === 'saving'">
+                            <i class="fa fa-circle-o-notch fa-spin me-1 icon-spin"/>
+                            <span class="btn-text">Saving &amp; Syncing...</span>
+                        </t>
+                        <t t-elif="state.saveState === 'success'">
+                            <i class="fa fa-check-circle me-1 icon-success-pop"/>
+                            <span class="btn-text">Live Synced!</span>
+                        </t>
+                        <t t-else="">
+                            <i class="fa fa-cloud-upload me-1 icon-idle"/>
+                            <span class="btn-text">Save Design</span>
+                        </t>
+                        <!-- Sparkles particle effect on success -->
+                        <div t-if="state.saveState === 'success'" class="save-sparkles">
+                            <span class="sparkle s1"/>
+                            <span class="sparkle s2"/>
+                            <span class="sparkle s3"/>
+                            <span class="sparkle s4"/>
+                        </div>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 2. Studio Body (3 Columns) -->
+            <div class="ara-studio-body">
+
+                <!-- Column 1: Palette (Left Sidebar) -->
+                <aside class="ara-studio-palette">
+                    <div class="palette-header">
+                        <h3><i class="fa fa-cubes text-primary me-2"/>Components</h3>
+                        <p>Click or drag blocks onto the receipt canvas.</p>
+                    </div>
+
+                    <div class="palette-list">
+                        <t t-foreach="paletteBlocks" t-as="b" t-key="b.type">
+                            <div class="palette-item"
+                                 draggable="true"
+                                 t-on-dragstart="(ev) => this.onDragStartPalette(ev, b.type)"
+                                 t-on-click="() => this.addBlock(b.type)"
+                                 t-att-title="'Click or drag to add ' + b.title">
+                                <div t-attf-class="item-icon {{ b.iconBgClass }}">
+                                    <i t-attf-class="fa {{ b.iconClass }}"/>
+                                </div>
+                                <div class="item-info">
+                                    <div class="item-title" t-out="b.title"/>
+                                    <div class="item-desc" t-out="b.desc"/>
+                                </div>
+                                <button type="button" class="item-add-btn" title="Add to receipt">
+                                    <i class="fa fa-plus"/>
+                                </button>
+                            </div>
+                        </t>
+                    </div>
+                </aside>
+
+                <!-- Column 2: Center Canvas (Receipt Simulator) -->
+                <main class="ara-studio-canvas-area"
+                      t-on-dragover.prevent=""
+                      t-on-drop="(ev) => this.onDropCanvas(ev, state.blocks.length)">
+
+                    <!-- Floating Live Sync HUD Badge -->
+                    <div t-if="state.showSyncToast" class="live-sync-hud-toast">
+                        <div class="hud-pill">
+                            <div class="hud-icon-badge">
+                                <i class="fa fa-bolt"/>
+                            </div>
+                            <div class="hud-content">
+                                <span class="hud-title">LIVE SYNCED TO POS</span>
+                                <span class="hud-sub">Receipt layout broadcasted in real time</span>
+                            </div>
+                            <div class="hud-ping-dot"/>
+                        </div>
+                    </div>
+
+                    <!-- Floating Reset HUD Badge -->
+                    <div t-if="state.showResetToast" class="live-sync-hud-toast reset-hud">
+                        <div class="hud-pill">
+                            <div class="hud-icon-badge hud-icon-amber">
+                                <i class="fa fa-history"/>
+                            </div>
+                            <div class="hud-content">
+                                <span class="hud-title text-amber">LAYOUT RESTORED TO DEFAULT</span>
+                                <span class="hud-sub">Original layout blocks &amp; settings reloaded</span>
+                            </div>
+                            <div class="hud-ping-dot dot-amber"/>
+                        </div>
+                    </div>
+
+                    <div class="canvas-hint">
+                        <i class="fa fa-info-circle text-primary"/>
+                        <span>Drag &amp; drop to reorder blocks, click any block to configure properties.</span>
+                    </div>
+
+                    <!-- Thermal Paper Ticket Wrapper -->
+                    <div id="ara-receipt-print-area"
+                         t-attf-class="thermal-paper width-{{ state.paperWidth }} {{ state.saveState === 'success' ? 'sync-pulse-active' : '' }} {{ state.resetState === 'success' ? 'paper-reload-active' : '' }}"
+                         t-att-style="'font-family: ' + (state.template.font_family || 'monospace') + '; font-size: ' + (state.template.font_size_base || '12px') + '; line-height: ' + (state.template.line_spacing || '1.3') + ';'">
+
+                        <!-- Realistic Thermal Scanner Beam Laser Sweep -->
+                        <div t-if="state.saveState === 'success'" class="thermal-scanner-beam"/>
+
+                        <t t-if="state.blocks.length === 0">
+                            <div class="text-center p-4 text-muted">
+                                <i class="fa fa-file-text-o fa-3x mb-2"/>
+                                <p class="mb-0">Receipt is currently empty.</p>
+                                <small>Select a component from the left sidebar to start building.</small>
+                            </div>
+                        </t>
+
+                        <!-- Loop Through Blocks -->
+                        <t t-foreach="state.blocks" t-as="block" t-key="block.id">
+
+                            <!-- Insert Zone Above -->
+                            <div class="canvas-insert-zone"
+                                 t-on-dragover.prevent=""
+                                 t-on-drop.stop="(ev) => this.onDropCanvas(ev, block_index)">
+                                <button type="button"
+                                        class="insert-plus-btn"
+                                        title="Insert Block Here"
+                                        t-on-click.stop="() => this.addBlock('custom_text', block_index)">
+                                    <i class="fa fa-plus"/>
+                                </button>
+                            </div>
+
+                            <!-- Canvas Block Container -->
+                            <div class="canvas-block"
+                                 draggable="true"
+                                 t-att-class="{ 'selected': state.selectedBlockId === block.id, 'disabled': !block.enabled }"
+                                 t-on-click="() => this.selectBlock(block.id)"
+                                 t-on-dragstart="(ev) => this.onDragStartCanvas(ev, block_index)"
+                                 t-on-dragover="(ev) => this.onDragOverCanvas(ev, block_index)"
+                                 t-on-drop.stop="(ev) => this.onDropCanvas(ev, block_index)"
+                                 t-on-dragend="cleanupDrag">
+
+                                <!-- Insertion Indicators -->
+                                <div class="insert-indicator top"/>
+                                <div class="insert-indicator bottom"/>
+
+                                <!-- Block Floating Action Bar -->
+                                <div class="block-action-bar" t-on-click.stop="">
+                                    <button type="button" class="action-btn" title="Move Up"
+                                            t-if="block_index > 0"
+                                            t-on-click="() => this.moveBlock(block_index, -1)">
+                                        <i class="fa fa-chevron-up"/>
+                                    </button>
+                                    <button type="button" class="action-btn" title="Move Down"
+                                            t-if="block_index &lt; state.blocks.length - 1"
+                                            t-on-click="() => this.moveBlock(block_index, 1)">
+                                        <i class="fa fa-chevron-down"/>
+                                    </button>
+                                    <button type="button" class="action-btn" title="Enable / Disable Block"
+                                            t-on-click="() => this.toggleBlock(block.id)">
+                                        <i t-attf-class="fa {{ block.enabled ? 'fa-eye' : 'fa-eye-slash text-warning' }}"/>
+                                    </button>
+                                    <button type="button" class="action-btn" title="Duplicate Block"
+                                            t-on-click="() => this.duplicateBlock(block.id)">
+                                        <i class="fa fa-copy"/>
+                                    </button>
+                                    <button type="button" class="action-btn btn-delete" title="Delete Block"
+                                            t-on-click="() => this.deleteBlock(block.id)">
+                                        <i class="fa fa-trash-o"/>
+                                    </button>
+                                </div>
+
+                                <!-- ================= BLOCK RENDERING ================= -->
+
+                                <!-- 1. HEADER BLOCK -->
+                                <t t-if="block.type === 'header'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <!-- Logo -->
+                                        <div t-if="block.settings.show_logo and state.template.show_logo" class="mb-2">
+                                            <div style="display: inline-block; background: #e2e8f0; border-radius: 4px; padding: 6px 12px; font-weight: bold; color: #475569;"
+                                                 t-att-style="'max-width: ' + (block.settings.logo_width || 120) + 'px;'">
+                                                <i class="fa fa-picture-o me-1"/> STORE LOGO
+                                            </div>
+                                        </div>
+                                        <!-- Company Name -->
+                                        <div t-if="block.settings.show_company_name"
+                                             t-attf-class="{{ block.settings.company_name_bold ? 'fw-bold' : '' }}"
+                                             t-att-style="'font-size: ' + (block.settings.company_name_size === 'large' ? '1.25em' : (block.settings.company_name_size === 'medium' ? '1.1em' : '1em')) + ';'"
+                                             t-out="sampleData.company.name"/>
+                                        <!-- Address -->
+                                        <div t-if="block.settings.show_address" class="text-muted" style="font-size: 0.9em;">
+                                            <div t-out="sampleData.company.street"/>
+                                            <div t-out="sampleData.company.city"/>
+                                        </div>
+                                        <!-- Contact Info -->
+                                        <div style="font-size: 0.85em;">
+                                            <span t-if="block.settings.show_phone" t-out="'Tel: ' + sampleData.company.phone"/>
+                                            <span t-if="block.settings.show_phone and block.settings.show_email"> | </span>
+                                            <span t-if="block.settings.show_email" t-out="sampleData.company.email"/>
+                                        </div>
+                                        <div t-if="block.settings.show_website" style="font-size: 0.85em;" t-out="sampleData.company.website"/>
+                                        <!-- VAT / Tax ID -->
+                                        <div t-if="block.settings.show_vat" class="mt-1" style="font-size: 0.85em;" t-out="'Tax ID: ' + sampleData.company.vat"/>
+                                        <!-- Custom Tagline -->
+                                        <div t-if="block.settings.header_text" class="mt-1 fst-italic" style="font-size: 0.9em;" t-out="block.settings.header_text"/>
+                                    </div>
+                                </t>
+
+                                <!-- 2. ORDER INFO BLOCK -->
+                                <t t-if="block.type === 'order_info'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'left' }} mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <!-- Title -->
+                                        <div t-if="block.settings.show_title and block.settings.receipt_title"
+                                             class="receipt-title fw-bold py-1"
+                                             style="font-size: 1.1em; letter-spacing: 1px;"
+                                             t-out="block.settings.receipt_title"/>
+                                        <div class="d-flex justify-content-between" t-if="block.settings.show_ref">
+                                            <span class="text-muted">Receipt No:</span>
+                                            <span class="fw-bold" t-out="sampleData.order.ref"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between" t-if="block.settings.show_date">
+                                            <span class="text-muted">Date:</span>
+                                            <span t-out="sampleData.order.date"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between" t-if="block.settings.show_cashier">
+                                            <span class="text-muted" t-out="block.settings.cashier_prefix || 'Cashier: '"/>
+                                            <span t-out="sampleData.order.cashier"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between" t-if="block.settings.show_customer">
+                                            <span class="text-muted">Customer:</span>
+                                            <span t-out="sampleData.order.customer"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between" t-if="block.settings.show_table">
+                                            <span class="text-muted">Table/Area:</span>
+                                            <span class="fw-bold" t-out="sampleData.order.table"/>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <!-- 3. DIVIDER BLOCK -->
+                                <t t-if="block.type === 'divider'">
+                                    <div t-attf-class="py-1 my-{{ block.settings.margin || 'small' }}">
+                                        <t t-if="block.settings.style === 'dashed'">
+                                            <div style="border-top: 1px dashed #000; width: 100%;"/>
+                                        </t>
+                                        <t t-elif="block.settings.style === 'solid'">
+                                            <div style="border-top: 1px solid #000; width: 100%;"/>
+                                        </t>
+                                        <t t-elif="block.settings.style === 'double'">
+                                            <div style="border-top: 3px double #000; width: 100%;"/>
+                                        </t>
+                                        <t t-elif="block.settings.style === 'dotted'">
+                                            <div style="border-top: 1px dotted #000; width: 100%;"/>
+                                        </t>
+                                        <t t-elif="block.settings.style === 'stars'">
+                                            <div class="text-center" style="letter-spacing: 3px; font-size: 0.8em; overflow: hidden; white-space: nowrap;">
+                                                **************************************************
+                                            </div>
+                                        </t>
+                                        <t t-elif="block.settings.style === 'space'">
+                                            <div style="height: 14px;"/>
+                                        </t>
+                                    </div>
+                                </t>
+
+                                <!-- 4. ORDERLINES BLOCK -->
+                                <t t-if="block.type === 'orderlines'">
+                                    <div t-attf-class="mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <t t-foreach="sampleData.order.lines" t-as="item" t-key="item_index">
+                                            <!-- Detailed Layout -->
+                                            <t t-if="block.settings.layout === 'detailed'">
+                                                <div class="py-1">
+                                                    <div class="fw-bold text-start" t-out="item.name"/>
+                                                    <div class="d-flex justify-content-between" style="font-size: 0.9em;">
+                                                        <span>
+                                                            <span t-if="block.settings.show_qty" t-out="item.qty + ' x '"/>
+                                                            <span t-if="block.settings.show_unit_price" t-out="formatCurrency(item.price)"/>
+                                                            <span t-if="block.settings.show_discount and item.discount" class="text-muted ms-1" t-out="'(-' + item.discount + '%)'"/>
+                                                        </span>
+                                                        <span t-if="block.settings.show_total" class="fw-bold" t-out="formatCurrency(item.total)"/>
+                                                    </div>
+                                                    <div t-if="block.settings.show_notes and item.note" class="fst-italic text-muted" style="font-size: 0.8em;">
+                                                        <i class="fa fa-pencil me-1"/>
+                                                        <span t-out="item.note"/>
+                                                    </div>
+                                                </div>
+                                            </t>
+                                            <!-- Compact Layout (Single Line) -->
+                                            <t t-else="">
+                                                <div class="d-flex justify-content-between py-1" style="font-size: 0.95em;">
+                                                    <span class="text-truncate me-2">
+                                                        <span t-if="block.settings.show_qty" class="fw-bold" t-out="item.qty + 'x '"/>
+                                                        <span t-out="item.name"/>
+                                                    </span>
+                                                    <span t-if="block.settings.show_total" class="fw-bold text-nowrap" t-out="formatCurrency(item.total)"/>
+                                                </div>
+                                            </t>
+
+                                            <!-- Item Divider -->
+                                            <div t-if="block.settings.show_item_divider and item_index &lt; sampleData.order.lines.length - 1"
+                                                 style="border-top: 1px dotted #ccc; margin: 2px 0;"/>
+                                        </t>
+                                    </div>
+                                </t>
+
+                                <!-- 5. TOTALS BLOCK -->
+                                <t t-if="block.type === 'totals'">
+                                    <div t-attf-class="mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <!-- Subtotal -->
+                                        <div t-if="block.settings.show_subtotal" class="d-flex justify-content-between py-1">
+                                            <span>Subtotal</span>
+                                            <span t-out="formatCurrency(sampleData.order.subtotal)"/>
+                                        </div>
+                                        <!-- Taxes -->
+                                        <t t-if="block.settings.show_taxes">
+                                            <t t-foreach="sampleData.order.taxes" t-as="tax" t-key="tax_index">
+                                                <div class="d-flex justify-content-between" style="font-size: 0.9em;">
+                                                    <span t-out="tax.name"/>
+                                                    <span t-out="formatCurrency(tax.amount)"/>
+                                                </div>
+                                            </t>
+                                        </t>
+                                        <!-- Discounts -->
+                                        <div t-if="block.settings.show_discount and sampleData.order.discount" class="d-flex justify-content-between text-success py-1">
+                                            <span>Total Discount</span>
+                                            <span t-out="'- ' + formatCurrency(sampleData.order.discount)"/>
+                                        </div>
+                                        <!-- Rounding -->
+                                        <div t-if="block.settings.show_rounding and sampleData.order.rounding" class="d-flex justify-content-between text-muted" style="font-size: 0.85em;">
+                                            <span>Rounding</span>
+                                            <span t-out="formatCurrency(sampleData.order.rounding)"/>
+                                        </div>
+                                        <!-- Grand Total -->
+                                        <div class="d-flex justify-content-between py-2 border-top border-bottom border-dark my-1"
+                                             t-attf-class="{{ block.settings.total_bold ? 'fw-bold' : '' }}"
+                                             t-att-style="'font-size: ' + (block.settings.total_size === 'large' ? '1.3em' : (block.settings.total_size === 'medium' ? '1.15em' : '1em')) + ';'">
+                                            <span t-out="block.settings.total_label || 'TOTAL'"/>
+                                            <span t-out="formatCurrency(sampleData.order.grandTotal)"/>
+                                        </div>
+                                        <!-- Payments -->
+                                        <t t-if="block.settings.show_payments">
+                                            <t t-foreach="sampleData.order.payments" t-as="p" t-key="p_index">
+                                                <div class="d-flex justify-content-between pt-1" style="font-size: 0.9em;">
+                                                    <span t-out="p.name"/>
+                                                    <span t-out="formatCurrency(p.amount)"/>
+                                                </div>
+                                            </t>
+                                        </t>
+                                        <!-- Change -->
+                                        <div t-if="block.settings.show_change" class="d-flex justify-content-between pt-1 fw-bold">
+                                            <span t-out="block.settings.change_label || 'Change'"/>
+                                            <span t-out="formatCurrency(sampleData.order.change)"/>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <!-- 6. CUSTOM TEXT BLOCK -->
+                                <t t-if="block.type === 'custom_text'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'small' }}"
+                                         t-att-style="'font-size: ' + (block.settings.font_size === 'xs' ? '0.75em' : (block.settings.font_size === 'sm' ? '0.85em' : (block.settings.font_size === 'lg' ? '1.15em' : '1em'))) + ';'">
+                                        <div t-attf-class="{{ block.settings.bold ? 'fw-bold' : '' }} {{ block.settings.italic ? 'fst-italic' : '' }} {{ block.settings.border_box ? 'border p-2 rounded' : '' }}"
+                                             style="white-space: pre-line;"
+                                             t-out="block.settings.content"/>
+                                    </div>
+                                </t>
+
+                                <!-- 7. CUSTOM HTML BLOCK -->
+                                <t t-if="block.type === 'custom_html'">
+                                    <div t-attf-class="mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <t t-out="block.settings.html_content"/>
+                                    </div>
+                                </t>
+
+                                <!-- 8. BARCODE BLOCK -->
+                                <t t-if="block.type === 'barcode'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <!-- Simulated Code128 visual barcode lines -->
+                                        <div style="display: inline-flex; align-items: flex-end; justify-content: center; height: 38px; gap: 2px; padding: 2px 10px; background: #fff;">
+                                            <span style="width: 2px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 4px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 1px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 3px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 1px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 4px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 2px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 1px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 3px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 5px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 2px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 3px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 1px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 4px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 2px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 3px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 1px; height: 100%; background: #000; display: inline-block;"/>
+                                            <span style="width: 2px; height: 100%; background: #000; display: inline-block;"/>
+                                        </div>
+                                        <div t-if="block.settings.show_human_readable" style="font-size: 0.8em; letter-spacing: 2px;" t-out="sampleData.order.ref"/>
+                                    </div>
+                                </t>
+
+                                <!-- 9. QR CODE BLOCK -->
+                                <t t-if="block.type === 'qr_code'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'small' }}">
+                                        <div style="display: inline-block; padding: 6px; border: 1px solid #000; border-radius: 4px; background: #fff;">
+                                            <i class="fa fa-qrcode" t-att-style="'font-size: ' + (block.settings.size || 90) + 'px;'"/>
+                                        </div>
+                                        <div t-if="block.settings.label" class="mt-1" style="font-size: 0.8em;" t-out="block.settings.label"/>
+                                    </div>
+                                </t>
+
+                                <!-- 10. SOCIAL MEDIA & PROMO BLOCK -->
+                                <t t-if="block.type === 'social_media'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'small' }}" style="font-size: 0.85em;">
+                                        <div t-if="block.settings.instagram" class="mb-1">
+                                            <i class="fa fa-instagram text-danger me-1"/>
+                                            <span t-out="block.settings.instagram"/>
+                                        </div>
+                                        <div t-if="block.settings.whatsapp" class="mb-1">
+                                            <i class="fa fa-whatsapp text-success me-1"/>
+                                            <span t-out="block.settings.whatsapp"/>
+                                        </div>
+                                        <div t-if="block.settings.website" class="mb-1">
+                                            <i class="fa fa-globe text-primary me-1"/>
+                                            <span t-out="block.settings.website"/>
+                                        </div>
+                                        <div t-if="block.settings.promo_box" class="promo-box p-2 border border-dashed rounded mt-1 fw-bold" style="background: #fafafa;">
+                                            <i class="fa fa-ticket me-1"/>
+                                            <span t-out="block.settings.promo_box"/>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <!-- 11. FOOTER BLOCK -->
+                                <t t-if="block.type === 'footer'">
+                                    <div t-attf-class="text-{{ block.settings.align || 'center' }} mb-{{ block.settings.margin_bottom || 'none' }}" style="font-size: 0.85em;">
+                                        <div t-if="block.settings.thank_you" class="fw-bold mb-1" t-out="block.settings.thank_you"/>
+                                        <div t-if="block.settings.wifi_info" class="text-muted mb-1">
+                                            <i class="fa fa-wifi me-1"/>
+                                            <span t-out="block.settings.wifi_info"/>
+                                        </div>
+                                        <div t-if="block.settings.show_powered_by" class="mt-2 text-muted" style="font-size: 0.8em;">
+                                            Powered by <b>Ara POS Studio</b>
+                                        </div>
+                                    </div>
+                                </t>
+
+                            </div>
+                        </t>
+
+                    </div>
+                </main>
+
+                <!-- Column 3: Inspector / Settings Panel (Right Sidebar) -->
+                <aside class="ara-studio-inspector">
+
+                    <!-- Sub-view A: When a block is selected -->
+                    <t t-if="selectedBlock">
+                        <div class="inspector-header">
+                            <div class="inspector-title">
+                                <h3 t-out="selectedBlock.title"/>
+                                <span>Block Properties</span>
+                            </div>
+                            <span class="badge-block-type" t-out="selectedBlock.type"/>
+                        </div>
+
+                        <div class="inspector-body">
+                            <!-- Toggle Enabled -->
+                            <div class="control-group">
+                                <div class="form-check form-switch">
+                                    <label class="form-check-label" for="switchBlockEnabled">Display This Block</label>
+                                    <input class="form-check-input" type="checkbox" id="switchBlockEnabled"
+                                           t-model="selectedBlock.enabled"/>
+                                </div>
+                            </div>
+
+                            <!-- Common: Alignment (if applicable) -->
+                            <div class="control-group" t-if="selectedBlock.settings.align !== undefined">
+                                <label>Text Alignment</label>
+                                <div class="segmented-control">
+                                    <button type="button" class="seg-btn"
+                                            t-att-class="{ 'active': selectedBlock.settings.align === 'left' }"
+                                            t-on-click="() => selectedBlock.settings.align = 'left'">
+                                        <i class="fa fa-align-left me-1"/>Left
+                                    </button>
+                                    <button type="button" class="seg-btn"
+                                            t-att-class="{ 'active': selectedBlock.settings.align === 'center' }"
+                                            t-on-click="() => selectedBlock.settings.align = 'center'">
+                                        <i class="fa fa-align-center me-1"/>Center
+                                    </button>
+                                    <button type="button" class="seg-btn"
+                                            t-att-class="{ 'active': selectedBlock.settings.align === 'right' }"
+                                            t-on-click="() => selectedBlock.settings.align = 'right'">
+                                        <i class="fa fa-align-right me-1"/>Right
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Common: Margin Bottom -->
+                            <div class="control-group" t-if="selectedBlock.settings.margin_bottom !== undefined">
+                                <label>Bottom Margin</label>
+                                <select class="form-select" t-model="selectedBlock.settings.margin_bottom">
+                                    <option value="none">None (0px)</option>
+                                    <option value="small">Small (4px)</option>
+                                    <option value="normal">Normal (8px)</option>
+                                    <option value="large">Large (14px)</option>
+                                </select>
+                            </div>
+
+                            <!-- ================= INSPECTOR FOR SPECIFIC TYPES ================= -->
+
+                            <!-- 1. Header Block Settings -->
+                            <t t-if="selectedBlock.type === 'header'">
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swLogo">Show Store Logo</label>
+                                        <input class="form-check-input" type="checkbox" id="swLogo" t-model="selectedBlock.settings.show_logo"/>
+                                    </div>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.show_logo">
+                                    <label>Logo Width (px): <span class="val-indicator" t-out="selectedBlock.settings.logo_width + 'px'"/></label>
+                                    <input type="range" class="form-range" min="60" max="240" step="5" t-model="selectedBlock.settings.logo_width"/>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swCompName">Store / Company Name</label>
+                                        <input class="form-check-input" type="checkbox" id="swCompName" t-model="selectedBlock.settings.show_company_name"/>
+                                    </div>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.show_company_name">
+                                    <label>Company Name Size</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.company_name_size">
+                                        <option value="normal">Normal</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="large">Large</option>
+                                    </select>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.show_company_name">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swCompBold">Bold Company Name</label>
+                                        <input class="form-check-input" type="checkbox" id="swCompBold" t-model="selectedBlock.settings.company_name_bold"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swAddress">Full Address</label>
+                                        <input class="form-check-input" type="checkbox" id="swAddress" t-model="selectedBlock.settings.show_address"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swPhone">Phone Number</label>
+                                        <input class="form-check-input" type="checkbox" id="swPhone" t-model="selectedBlock.settings.show_phone"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swEmail">Email Address</label>
+                                        <input class="form-check-input" type="checkbox" id="swEmail" t-model="selectedBlock.settings.show_email"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swWeb">Website</label>
+                                        <input class="form-check-input" type="checkbox" id="swWeb" t-model="selectedBlock.settings.show_website"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swVat">Tax ID / VAT / NPWP</label>
+                                        <input class="form-check-input" type="checkbox" id="swVat" t-model="selectedBlock.settings.show_vat"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <label>Tagline / Header Note</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.header_text" placeholder="e.g. Welcome to our store!"/>
+                                </div>
+                            </t>
+
+                            <!-- 2. Order Info Settings -->
+                            <t t-if="selectedBlock.type === 'order_info'">
+                                <div class="control-group">
+                                    <label>Receipt Title</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.receipt_title" placeholder="SALES RECEIPT"/>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTitle">Show Receipt Title</label>
+                                        <input class="form-check-input" type="checkbox" id="swTitle" t-model="selectedBlock.settings.show_title"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swRef">Receipt Reference Number</label>
+                                        <input class="form-check-input" type="checkbox" id="swRef" t-model="selectedBlock.settings.show_ref"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swDate">Order Date &amp; Time</label>
+                                        <input class="form-check-input" type="checkbox" id="swDate" t-model="selectedBlock.settings.show_date"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swCashier">Cashier Name</label>
+                                        <input class="form-check-input" type="checkbox" id="swCashier" t-model="selectedBlock.settings.show_cashier"/>
+                                    </div>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.show_cashier">
+                                    <label>Cashier Prefix</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.cashier_prefix" placeholder="Cashier: "/>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swCust">Customer Name &amp; Contact</label>
+                                        <input class="form-check-input" type="checkbox" id="swCust" t-model="selectedBlock.settings.show_customer"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTable">Restaurant Table / Floor</label>
+                                        <input class="form-check-input" type="checkbox" id="swTable" t-model="selectedBlock.settings.show_table"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                            <!-- 3. Divider Settings -->
+                            <t t-if="selectedBlock.type === 'divider'">
+                                <div class="control-group">
+                                    <label>Divider Style</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.style">
+                                        <option value="dashed">Dashed Line (- - -)</option>
+                                        <option value="solid">Solid Line (___)</option>
+                                        <option value="double">Double Line (===)</option>
+                                        <option value="dotted">Dotted Line (. . .)</option>
+                                        <option value="stars">Stars (* * *)</option>
+                                        <option value="space">Empty Gap (Spacing)</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label>Margin Spacing</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.margin">
+                                        <option value="small">Small</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="large">Large</option>
+                                    </select>
+                                </div>
+                            </t>
+
+                            <!-- 4. Orderlines Settings -->
+                            <t t-if="selectedBlock.type === 'orderlines'">
+                                <div class="control-group">
+                                    <label>Item Layout Format</label>
+                                    <div class="segmented-control">
+                                        <button type="button" class="seg-btn"
+                                                t-att-class="{ 'active': selectedBlock.settings.layout === 'detailed' }"
+                                                t-on-click="() => selectedBlock.settings.layout = 'detailed'">
+                                            Detailed (2 Lines)
+                                        </button>
+                                        <button type="button" class="seg-btn"
+                                                t-att-class="{ 'active': selectedBlock.settings.layout === 'compact' }"
+                                                t-on-click="() => selectedBlock.settings.layout = 'compact'">
+                                            Compact (1 Line)
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swQty">Show Quantity (Qty)</label>
+                                        <input class="form-check-input" type="checkbox" id="swQty" t-model="selectedBlock.settings.show_qty"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swPriceUnit">Show Unit Price</label>
+                                        <input class="form-check-input" type="checkbox" id="swPriceUnit" t-model="selectedBlock.settings.show_unit_price"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swDisc">Show Line Discount</label>
+                                        <input class="form-check-input" type="checkbox" id="swDisc" t-model="selectedBlock.settings.show_discount"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTotalLine">Show Line Subtotal</label>
+                                        <input class="form-check-input" type="checkbox" id="swTotalLine" t-model="selectedBlock.settings.show_total"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swNotes">Show Customer Note</label>
+                                        <input class="form-check-input" type="checkbox" id="swNotes" t-model="selectedBlock.settings.show_notes"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swItemDiv">Divider Between Items</label>
+                                        <input class="form-check-input" type="checkbox" id="swItemDiv" t-model="selectedBlock.settings.show_item_divider"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                            <!-- 5. Totals Settings -->
+                            <t t-if="selectedBlock.type === 'totals'">
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swSub">Show Subtotal</label>
+                                        <input class="form-check-input" type="checkbox" id="swSub" t-model="selectedBlock.settings.show_subtotal"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTaxes">Show Taxes Breakdown</label>
+                                        <input class="form-check-input" type="checkbox" id="swTaxes" t-model="selectedBlock.settings.show_taxes"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTotDisc">Show Total Discount</label>
+                                        <input class="form-check-input" type="checkbox" id="swTotDisc" t-model="selectedBlock.settings.show_discount"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swRound">Show Rounding Amount</label>
+                                        <input class="form-check-input" type="checkbox" id="swRound" t-model="selectedBlock.settings.show_rounding"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <label>Grand Total Label</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.total_label" placeholder="TOTAL"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>Grand Total Font Size</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.total_size">
+                                        <option value="normal">Normal</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="large">Large</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTotBold">Bold Grand Total</label>
+                                        <input class="form-check-input" type="checkbox" id="swTotBold" t-model="selectedBlock.settings.total_bold"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swPay">Show Payment Lines</label>
+                                        <input class="form-check-input" type="checkbox" id="swPay" t-model="selectedBlock.settings.show_payments"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swChange">Show Change Due</label>
+                                        <input class="form-check-input" type="checkbox" id="swChange" t-model="selectedBlock.settings.show_change"/>
+                                    </div>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.show_change">
+                                    <label>Change Due Label</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.change_label" placeholder="Change"/>
+                                </div>
+                            </t>
+
+                            <!-- 6. Custom Text Settings -->
+                            <t t-if="selectedBlock.type === 'custom_text'">
+                                <div class="control-group">
+                                    <label>Text Content</label>
+                                    <textarea class="form-control" rows="4" t-model="selectedBlock.settings.content" placeholder="Type custom message, return policy, or note..."/>
+                                </div>
+                                <div class="control-group">
+                                    <label>Font Size</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.font_size">
+                                        <option value="xs">Extra Small (XS)</option>
+                                        <option value="sm">Small (SM)</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="lg">Large (LG)</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTxtBold">Bold Text</label>
+                                        <input class="form-check-input" type="checkbox" id="swTxtBold" t-model="selectedBlock.settings.bold"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTxtItalic">Italic Text</label>
+                                        <input class="form-check-input" type="checkbox" id="swTxtItalic" t-model="selectedBlock.settings.italic"/>
+                                    </div>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swTxtBorder">Surround with Border Box</label>
+                                        <input class="form-check-input" type="checkbox" id="swTxtBorder" t-model="selectedBlock.settings.border_box"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                            <!-- 7. Custom HTML Settings -->
+                            <t t-if="selectedBlock.type === 'custom_html'">
+                                <div class="control-group">
+                                    <label>Custom HTML Code</label>
+                                    <textarea class="form-control html-editor" rows="6" t-model="selectedBlock.settings.html_content" placeholder="&lt;div&gt;Type custom HTML here...&lt;/div&gt;"/>
+                                    <small class="text-muted mt-1">You can include inline CSS styles, FontAwesome icons, badges, etc.</small>
+                                </div>
+                            </t>
+
+                            <!-- 8. Barcode Settings -->
+                            <t t-if="selectedBlock.type === 'barcode'">
+                                <div class="control-group">
+                                    <label>Barcode Height (px): <span class="val-indicator" t-out="selectedBlock.settings.height + 'px'"/></label>
+                                    <input type="range" class="form-range" min="25" max="80" step="5" t-model="selectedBlock.settings.height"/>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swBcHuman">Show Human-Readable Code</label>
+                                        <input class="form-check-input" type="checkbox" id="swBcHuman" t-model="selectedBlock.settings.show_human_readable"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                            <!-- 9. QR Code Settings -->
+                            <t t-if="selectedBlock.type === 'qr_code'">
+                                <div class="control-group">
+                                    <label>QR Code Target</label>
+                                    <select class="form-select" t-model="selectedBlock.settings.source">
+                                        <option value="portal_url">Odoo Portal E-Invoice URL (Standard)</option>
+                                        <option value="custom_url">Custom Web Link / Text</option>
+                                    </select>
+                                </div>
+                                <div class="control-group" t-if="selectedBlock.settings.source === 'custom_url'">
+                                    <label>Custom URL / Text</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.custom_url" placeholder="https://example.com/promo"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>QR Code Size (px): <span class="val-indicator" t-out="selectedBlock.settings.size + 'px'"/></label>
+                                    <input type="range" class="form-range" min="70" max="180" step="10" t-model="selectedBlock.settings.size"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>QR Caption / Label</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.label" placeholder="Scan for digital receipt &amp; invoice"/>
+                                </div>
+                            </t>
+
+                            <!-- 10. Social Media Settings -->
+                            <t t-if="selectedBlock.type === 'social_media'">
+                                <div class="control-group">
+                                    <label>Instagram Handle</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.instagram" placeholder="@ourstore.official"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>WhatsApp Number</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.whatsapp" placeholder="+1 (555) 234-5678"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>Website / Link</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.website" placeholder="www.ourstore.com"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>Promo / Coupon Box Message</label>
+                                    <textarea class="form-control" rows="2" t-model="selectedBlock.settings.promo_box" placeholder="Show this receipt for 10% off next visit..."/>
+                                </div>
+                            </t>
+
+                            <!-- 11. Footer Settings -->
+                            <t t-if="selectedBlock.type === 'footer'">
+                                <div class="control-group">
+                                    <label>Thank You Message</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.thank_you" placeholder="Thank You for Shopping With Us!"/>
+                                </div>
+                                <div class="control-group">
+                                    <label>Store WiFi Credentials</label>
+                                    <input type="text" class="form-control" t-model="selectedBlock.settings.wifi_info" placeholder="WiFi: ARA-GUEST | Pass: welcome123"/>
+                                </div>
+                                <div class="control-group">
+                                    <div class="form-check form-switch">
+                                        <label class="form-check-label" for="swPower">Show "Powered by Ara"</label>
+                                        <input class="form-check-input" type="checkbox" id="swPower" t-model="selectedBlock.settings.show_powered_by"/>
+                                    </div>
+                                </div>
+                            </t>
+
+                        </div>
+
+                        <!-- Inspector Footer Actions -->
+                        <div class="inspector-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill"
+                                    t-on-click="() => this.duplicateBlock(selectedBlock.id)">
+                                <i class="fa fa-copy me-1"/>Duplicate
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm flex-fill"
+                                    t-on-click="() => this.deleteBlock(selectedBlock.id)">
+                                <i class="fa fa-trash-o me-1"/>Delete
+                            </button>
+                        </div>
+                    </t>
+
+                    <!-- Sub-view B: Global Template Settings (When no block is selected) -->
+                    <t t-else="">
+                        <div class="inspector-header">
+                            <div class="inspector-title">
+                                <h3>Global Settings</h3>
+                                <span>Typography &amp; Paper Format</span>
+                            </div>
+                        </div>
+
+                        <div class="inspector-body">
+                            <div class="control-group">
+                                <label>Receipt Template Name</label>
+                                <input type="text" class="form-control" t-model="state.template.name"/>
+                            </div>
+                            <div class="control-group">
+                                <label>Paper Width</label>
+                                <select class="form-select" t-model="state.paperWidth">
+                                    <option value="80mm">80mm (Standard POS Printer)</option>
+                                    <option value="58mm">58mm (Mini / Mobile Printer)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Font Family</label>
+                                <select class="form-select" t-model="state.template.font_family">
+                                    <option value="monospace">Monospace (Thermal Printer Classic)</option>
+                                    <option value="sans-serif">Sans-Serif (Modern Clean)</option>
+                                    <option value="serif">Serif (Traditional Elegance)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Base Font Size</label>
+                                <select class="form-select" t-model="state.template.font_size_base">
+                                    <option value="11px">Compact (11px)</option>
+                                    <option value="12px">Normal (12px)</option>
+                                    <option value="13px">Medium (13px)</option>
+                                    <option value="14px">Large (14px)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Line Spacing</label>
+                                <select class="form-select" t-model="state.template.line_spacing">
+                                    <option value="1.1">Tight (1.1)</option>
+                                    <option value="1.3">Normal (1.3)</option>
+                                    <option value="1.5">Relaxed (1.5)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Extra Custom CSS (Optional)</label>
+                                <textarea class="form-control html-editor" rows="4" t-model="state.template.custom_css" placeholder="/* Custom CSS example: */&#10;.ara-custom-receipt { letter-spacing: 0.5px; }"/>
+                            </div>
+                            <div class="control-group border-top pt-3 mt-3">
+                                <label class="fw-bold d-flex justify-content-between align-items-center">
+                                    <span>Applied Point of Sale (POS)</span>
+                                    <span class="badge bg-primary text-white" t-out="(state.selectedConfigIds ? state.selectedConfigIds.length : 0) + ' Connected'"/>
+                                </label>
+                                <p class="text-muted small mb-2">Check the POS shops that will print this receipt design:</p>
+                                <div class="pos-config-checklist p-2 bg-light rounded border mb-2" style="max-height: 140px; overflow-y: auto;">
+                                    <t t-foreach="state.posConfigs" t-as="cfg" t-key="cfg.id">
+                                        <div class="form-check form-check-sm mb-1">
+                                            <input class="form-check-input" type="checkbox"
+                                                   t-att-id="'cfg_' + cfg.id"
+                                                   t-att-checked="isConfigSelected(cfg.id)"
+                                                   t-on-change="(ev) => this.toggleConfigSelection(cfg.id, ev.target.checked)"/>
+                                            <label class="form-check-label small" t-att-for="'cfg_' + cfg.id" t-out="cfg.name"/>
+                                        </div>
+                                    </t>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary w-100" t-on-click="applyToAllConfigs">
+                                    <i class="fa fa-check-circle me-1"/>Connect to All POS Shops
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+
+                </aside>
+
+            </div>
+
+        </div>
+    </t>
+
+</templates>

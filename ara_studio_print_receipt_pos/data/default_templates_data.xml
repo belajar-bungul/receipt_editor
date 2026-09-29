@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="0">
+    <!-- Standard 80mm Template -->
+    <record id="ara_pos_receipt_template_default_80mm" model="ara.pos.receipt.template">
+        <field name="name">Standard 80mm Template - Modern Clean</field>
+        <field name="paper_width">80mm</field>
+        <field name="font_family">monospace</field>
+        <field name="font_size_base">12px</field>
+        <field name="line_spacing">1.3</field>
+        <field name="show_logo">True</field>
+        <field name="logo_width">120</field>
+    </record>
+
+    <!-- Compact 58mm Template -->
+    <record id="ara_pos_receipt_template_default_58mm" model="ara.pos.receipt.template">
+        <field name="name">Compact 58mm Template - Mini Thermal</field>
+        <field name="paper_width">58mm</field>
+        <field name="font_family">monospace</field>
+        <field name="font_size_base">11px</field>
+        <field name="line_spacing">1.1</field>
+        <field name="show_logo">True</field>
+        <field name="logo_width">90</field>
+    </record>
+</odoo>

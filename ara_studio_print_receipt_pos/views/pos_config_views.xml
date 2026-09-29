@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="pos_config_view_form_inherit_ara_receipt" model="ir.ui.view">
+        <field name="name">pos.config.form.inherit.ara.receipt</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='configuration']//div[hasclass('o_settings_container')]" position="inside">
+                <setting id="ara_receipt_studio_setting" string="Ara POS Receipt Studio" help="Visually customize your POS receipt layout using drag &amp; drop without code.">
+                    <field name="ara_receipt_template_id"/>
+                    <div class="content-group mt-2">
+                        <button name="action_open_receipt_studio" type="object" string="🎨 Open Receipt Studio" class="btn btn-primary btn-sm" icon="fa-paint-brush"/>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

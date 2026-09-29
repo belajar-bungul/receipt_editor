@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="ara_studio_print_receipt_pos.AraCustomReceipt">
+        <div t-attf-class="ara-receipt-container width-{{ template?.paper_width || '80mm' }}"
+             t-att-style="'font-family: ' + (template?.font_family || 'monospace') + '; font-size: ' + (template?.font_size_base || '12px') + '; line-height: ' + (template?.line_spacing || '1.3') + '; ' + (template?.custom_css || '')">
+
+            <!-- Loop Blocks -->
+            <t t-foreach="blocks" t-as="block" t-key="block.id">
+
+                <!-- 1. HEADER BLOCK -->
+                <t t-if="block.type === 'header'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-header text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <!-- Logo -->
+                        <div t-if="block.settings.show_logo and template.show_logo and logoUrl" class="mb-2">
+                            <img t-att-src="logoUrl" alt="Logo" class="receipt-logo"
+                                 t-att-style="'max-width: ' + (block.settings.logo_width || 120) + 'px;'"/>
+                        </div>
+                        <!-- Company Name -->
+                        <div t-if="block.settings.show_company_name and company.name"
+                             t-attf-class="company-name {{ block.settings.company_name_bold ? 'fw-bold' : '' }}"
+                             t-att-style="'font-size: ' + (block.settings.company_name_size === 'large' ? '1.25em' : (block.settings.company_name_size === 'medium' ? '1.1em' : '1em')) + ';'"
+                             t-out="company.name"/>
+                        <!-- Address -->
+                        <div t-if="block.settings.show_address" class="company-address">
+                            <div t-if="company.street" t-out="company.street"/>
+                            <div>
+                                <t t-if="company.city" t-out="company.city"/>
+                                <t t-if="company.state_id?.name" t-out="', ' + company.state_id.name"/>
+                                <t t-if="company.zip" t-out="' ' + company.zip"/>
+                            </div>
+                        </div>
+                        <!-- Contacts -->
+                        <div class="company-contact">
+                            <span t-if="block.settings.show_phone and company.phone" t-out="'Tel: ' + company.phone"/>
+                            <span t-if="block.settings.show_phone and company.phone and block.settings.show_email and company.email"> | </span>
+                            <span t-if="block.settings.show_email and company.email" t-out="company.email"/>
+                        </div>
+                        <div t-if="block.settings.show_website and company.website" class="company-contact" t-out="company.website"/>
+                        <!-- VAT / Tax ID -->
+                        <div t-if="block.settings.show_vat and company.vat" class="company-vat mt-1">
+                            <t t-out="(company.country_id?.vat_label || 'Tax ID') + ': ' + company.vat"/>
+                        </div>
+                        <!-- Tagline -->
+                        <div t-if="block.settings.header_text" class="header-tagline" t-out="block.settings.header_text"/>
+                    </div>
+                </t>
+
+                <!-- 2. ORDER INFO BLOCK -->
+                <t t-if="block.type === 'order_info'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-order-info text-{{ block.settings.align || 'left' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <!-- Receipt Title -->
+                        <div t-if="block.settings.show_title and block.settings.receipt_title"
+                             class="receipt-title fw-bold"
+                             t-out="block.settings.receipt_title"/>
+                        <!-- Reference -->
+                        <div class="info-row" t-if="block.settings.show_ref">
+                            <span class="text-muted">Receipt No:</span>
+                            <span class="fw-bold" t-out="order.pos_reference || order.name"/>
+                        </div>
+                        <!-- Date -->
+                        <div class="info-row" t-if="block.settings.show_date">
+                            <span class="text-muted">Date:</span>
+                            <span t-out="order.formatDateOrTime ? order.formatDateOrTime('date_order') : order.date_order"/>
+                        </div>
+                        <!-- Cashier -->
+                        <div class="info-row" t-if="block.settings.show_cashier and cashierName">
+                            <span class="text-muted" t-out="block.settings.cashier_prefix || 'Cashier: '"/>
+                            <span t-out="cashierName"/>
+                        </div>
+                        <!-- Customer -->
+                        <div class="info-row" t-if="block.settings.show_customer and order.partner_id">
+                            <span class="text-muted">Customer:</span>
+                            <span t-out="order.partner_id.name"/>
+                        </div>
+                        <!-- Table -->
+                        <div class="info-row" t-if="block.settings.show_table and (order.table_id or order.self_ordering_table_id)">
+                            <span class="text-muted">Table/Area:</span>
+                            <span class="fw-bold" t-out="order.table_id?.name || order.self_ordering_table_id?.name"/>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- 3. DIVIDER BLOCK -->
+                <t t-if="block.type === 'divider'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-divider divider-{{ block.settings.style || 'dashed' }} margin-{{ block.settings.margin || 'small' }}">
+                        <t t-if="block.settings.style === 'stars'">
+                            **************************************************
+                        </t>
+                    </div>
+                </t>
+
+                <!-- 4. ORDERLINES BLOCK -->
+                <t t-if="block.type === 'orderlines'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-orderlines margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <t t-foreach="orderlines" t-as="line" t-key="line_index">
+                            <div class="orderline-item">
+                                <!-- Detailed Mode -->
+                                <t t-if="block.settings.layout === 'detailed'">
+                                    <div class="item-header text-start" t-out="getLineName(line)"/>
+                                    <div class="item-details">
+                                        <span>
+                                            <span t-if="block.settings.show_qty" t-out="line.qty + ' x '"/>
+                                            <span t-if="block.settings.show_unit_price" t-out="formatCurrency(getLinePrice(line))"/>
+                                            <span t-if="block.settings.show_discount and line.discount" class="text-muted ms-1" t-out="'(-' + line.discount + '%)'"/>
+                                        </span>
+                                        <span t-if="block.settings.show_total" class="fw-bold" t-out="formatCurrency(getLineTotal(line))"/>
+                                    </div>
+                                    <div t-if="block.settings.show_notes and (line.customerNote or line.note)" class="item-note text-muted">
+                                        <i class="fa fa-sticky-note-o me-1"/>
+                                        <t t-out="line.customerNote || line.note"/>
+                                    </div>
+                                </t>
+                                <!-- Compact Mode -->
+                                <t t-else="">
+                                    <div class="item-details">
+                                        <span class="text-truncate me-2">
+                                            <span t-if="block.settings.show_qty" class="fw-bold" t-out="line.qty + 'x '"/>
+                                            <span t-out="getLineName(line)"/>
+                                        </span>
+                                        <span t-if="block.settings.show_total" class="fw-bold text-nowrap" t-out="formatCurrency(getLineTotal(line))"/>
+                                    </div>
+                                </t>
+
+                                <!-- Item Divider -->
+                                <div t-if="block.settings.show_item_divider and line_index &lt; orderlines.length - 1" class="item-divider"/>
+                            </div>
+                        </t>
+                    </div>
+                </t>
+
+                <!-- 5. TOTALS BLOCK -->
+                <t t-if="block.type === 'totals'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-totals margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <!-- Subtotal -->
+                        <div t-if="block.settings.show_subtotal and order.priceExcl !== undefined" class="total-row">
+                            <span>Subtotal</span>
+                            <span t-out="formatCurrency(order.priceExcl)"/>
+                        </div>
+                        <!-- Taxes Details -->
+                        <t t-if="block.settings.show_taxes">
+                            <t t-set="taxTotals" t-value="getTaxTotals()"/>
+                            <t t-if="taxTotals and taxTotals.has_tax_groups">
+                                <t t-foreach="taxTotals.subtotals" t-as="subtotal" t-key="subtotal.name">
+                                    <div t-foreach="subtotal.tax_groups" t-as="tax_group" t-key="tax_group.id" class="total-row" style="font-size: 0.9em;">
+                                        <span t-out="tax_group.group_name"/>
+                                        <span t-out="formatCurrency(tax_group.tax_amount_currency)"/>
+                                    </div>
+                                </t>
+                            </t>
+                        </t>
+                        <!-- Total Discount -->
+                        <t t-set="totDiscount" t-value="getTotalDiscount()"/>
+                        <div t-if="block.settings.show_discount and totDiscount" class="total-row text-success">
+                            <span>Discount</span>
+                            <span t-out="'- ' + formatCurrency(totDiscount)"/>
+                        </div>
+                        <!-- Rounding -->
+                        <div t-if="block.settings.show_rounding and order.appliedRounding" class="total-row text-muted" style="font-size: 0.85em;">
+                            <span>Rounding</span>
+                            <span t-out="formatCurrency(order.appliedRounding)"/>
+                        </div>
+                        <!-- Grand Total -->
+                        <div t-attf-class="grand-total-row size-{{ block.settings.total_size || 'large' }} {{ block.settings.total_bold ? 'fw-bold' : '' }}">
+                            <span t-out="block.settings.total_label || 'TOTAL'"/>
+                            <span t-out="getGrandTotal()"/>
+                        </div>
+                        <!-- Payments -->
+                        <t t-if="block.settings.show_payments">
+                            <div t-foreach="paymentLines" t-as="p" t-key="p_index" class="total-row pt-1" style="font-size: 0.9em;">
+                                <span t-out="p.payment_method_id.name"/>
+                                <span t-out="formatCurrency(p.getAmount ? p.getAmount() : p.amount)"/>
+                            </div>
+                        </t>
+                        <!-- Change -->
+                        <t t-set="changeAmount" t-value="getChange()"/>
+                        <div t-if="block.settings.show_change and changeAmount" class="total-row pt-1 fw-bold">
+                            <span t-out="block.settings.change_label || 'Change'"/>
+                            <span t-out="changeAmount"/>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- 6. CUSTOM TEXT BLOCK -->
+                <t t-if="block.type === 'custom_text'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-text text-{{ block.settings.align || 'center' }} size-{{ block.settings.font_size || 'normal' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <div t-attf-class="{{ block.settings.bold ? 'fw-bold' : '' }} {{ block.settings.italic ? 'fst-italic' : '' }} {{ block.settings.border_box ? 'border-box' : '' }}"
+                             t-out="block.settings.content"/>
+                    </div>
+                </t>
+
+                <!-- 7. CUSTOM HTML BLOCK -->
+                <t t-if="block.type === 'custom_html'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-html margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <t t-out="block.settings.html_content"/>
+                    </div>
+                </t>
+
+                <!-- 8. BARCODE BLOCK -->
+                <t t-if="block.type === 'barcode'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-barcode text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <img t-att-src="getBarcodeUrl(order.pos_reference || order.name)"
+                             alt="Barcode"
+                             class="barcode-img"
+                             t-att-style="'height: ' + (block.settings.height || 40) + 'px;'"/>
+                        <div t-if="block.settings.show_human_readable" class="barcode-text" t-out="order.pos_reference || order.name"/>
+                    </div>
+                </t>
+
+                <!-- 9. QR CODE BLOCK -->
+                <t t-if="block.type === 'qr_code'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-qr text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <img t-att-src="getQRCodeUrl(block.settings.source, block.settings.custom_url)"
+                             alt="QR Code"
+                             class="qr-img"
+                             t-att-style="'width: ' + (block.settings.size || 100) + 'px; height: ' + (block.settings.size || 100) + 'px;'"/>
+                        <div t-if="block.settings.label" class="qr-label text-muted" t-out="block.settings.label"/>
+                    </div>
+                </t>
+
+                <!-- 10. SOCIAL MEDIA & PROMO BLOCK -->
+                <t t-if="block.type === 'social_media'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-social text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
+                        <div t-if="block.settings.instagram">
+                            <i class="fa fa-instagram me-1"/>
+                            <span t-out="block.settings.instagram"/>
+                        </div>
+                        <div t-if="block.settings.whatsapp">
+                            <i class="fa fa-whatsapp me-1"/>
+                            <span t-out="block.settings.whatsapp"/>
+                        </div>
+                        <div t-if="block.settings.website">
+                            <i class="fa fa-globe me-1"/>
+                            <span t-out="block.settings.website"/>
+                        </div>
+                        <div t-if="block.settings.promo_box" class="promo-box">
+                            <i class="fa fa-tag me-1"/>
+                            <span t-out="block.settings.promo_box"/>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- 11. FOOTER BLOCK -->
+                <t t-if="block.type === 'footer'">
+                    <div t-attf-class="ara-receipt-block ara-receipt-footer text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'none' }}">
+                        <div t-if="block.settings.thank_you" class="thank-you" t-out="block.settings.thank_you"/>
+                        <div t-if="block.settings.wifi_info" class="wifi-info text-muted">
+                            <i class="fa fa-wifi me-1"/>
+                            <span t-out="block.settings.wifi_info"/>
+                        </div>
+                        <div t-if="block.settings.show_powered_by" class="powered-by text-muted">
+                            Powered by <b>Ara POS Studio</b>
+                        </div>
+                    </div>
+                </t>
+
+            </t>
+        </div>
+    </t>
+
+</templates>
