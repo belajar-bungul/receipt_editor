@@ -7,7 +7,7 @@
         </xpath>
         <xpath expr="//div[hasclass('pos-receipt')][1]" position="after">
             <div t-if="hasCustomReceipt()" class="pos-receipt ara-pos-receipt-wrapper p-2">
-                <AraCustomReceipt order="order" template="customTemplate" formatCurrency="formatCurrency.bind(this)"/>
+                <AraCustomReceipt data="props.data" order="pos?.get_order()" template="customTemplate" formatCurrency="props.formatCurrency"/>
             </div>
         </xpath>
     </t>
