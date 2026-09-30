@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Ara POS Receipt Studio - Drag & Drop Receipt Designer',
-    'version': '19.0.1.0.0',
+    'version': '18.0.1.0.0',
     'category': 'Point of Sale',
     'summary': 'Visual No-Code Drag & Drop POS Receipt Customizer with Custom HTML, Dynamic Fields, Barcode, QR Code & Multi-width (80mm/58mm) Support',
     'description': """
-Ara POS Receipt Studio (Odoo 19)
+Ara POS Receipt Studio (Odoo 18)
 ================================
 Visually design and customize your Point of Sale (POS) receipts with drag-and-drop ease, without touching any code.
 
@@ -28,7 +28,7 @@ Key Features:
   - 80mm (Standard POS Desktop Thermal Printers)
   - 58mm (Mini Portable / Mobile Bluetooth Thermal Printers)
 * **Real-Time Live Simulator & Physical Test Print:** Preview changes instantly with realistic sample data and print test receipts directly to your thermal printer.
-* **100% Native Odoo 19 Architecture:** Fully integrated with POS session loading (pos.load.mixin) and OWL components.
+* **100% Native Odoo 18 Architecture:** Fully integrated with POS session loading (pos.load.mixin) and OWL components.
     """,
     'author': 'ARA SOFT',
     'website': 'https://www.arasoft.id',

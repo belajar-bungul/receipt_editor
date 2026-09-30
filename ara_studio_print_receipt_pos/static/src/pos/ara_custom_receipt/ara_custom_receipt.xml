@@ -12,7 +12,7 @@
                 <t t-if="block.type === 'header'">
                     <div t-attf-class="ara-receipt-block ara-receipt-header text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
                         <!-- Logo -->
-                        <div t-if="block.settings.show_logo and template.show_logo and logoUrl" class="mb-2">
+                        <div t-if="block.settings.show_logo and template?.show_logo and logoUrl" class="mb-2">
                             <img t-att-src="logoUrl" alt="Logo" class="receipt-logo"
                                  t-att-style="'max-width: ' + (block.settings.logo_width || 120) + 'px;'"/>
                         </div>
@@ -54,14 +54,14 @@
                              class="receipt-title fw-bold"
                              t-out="block.settings.receipt_title"/>
                         <!-- Reference -->
-                        <div class="info-row" t-if="block.settings.show_ref">
+                        <div class="info-row" t-if="block.settings.show_ref and receiptRef">
                             <span class="text-muted">Receipt No:</span>
-                            <span class="fw-bold" t-out="order.pos_reference || order.name"/>
+                            <span class="fw-bold" t-out="receiptRef"/>
                         </div>
                         <!-- Date -->
-                        <div class="info-row" t-if="block.settings.show_date">
+                        <div class="info-row" t-if="block.settings.show_date and receiptDate">
                             <span class="text-muted">Date:</span>
-                            <span t-out="order.formatDateOrTime ? order.formatDateOrTime('date_order') : order.date_order"/>
+                            <span t-out="receiptDate"/>
                         </div>
                         <!-- Cashier -->
                         <div class="info-row" t-if="block.settings.show_cashier and cashierName">
@@ -69,14 +69,14 @@
                             <span t-out="cashierName"/>
                         </div>
                         <!-- Customer -->
-                        <div class="info-row" t-if="block.settings.show_customer and order.partner_id">
+                        <div class="info-row" t-if="block.settings.show_customer and customerName">
                             <span class="text-muted">Customer:</span>
-                            <span t-out="order.partner_id.name"/>
+                            <span t-out="customerName"/>
                         </div>
                         <!-- Table -->
-                        <div class="info-row" t-if="block.settings.show_table and (order.table_id or order.self_ordering_table_id)">
+                        <div class="info-row" t-if="block.settings.show_table and tableName">
                             <span class="text-muted">Table/Area:</span>
-                            <span class="fw-bold" t-out="order.table_id?.name || order.self_ordering_table_id?.name"/>
+                            <span class="fw-bold" t-out="tableName"/>
                         </div>
                     </div>
                 </t>
@@ -100,25 +100,25 @@
                                     <div class="item-header text-start" t-out="getLineName(line)"/>
                                     <div class="item-details">
                                         <span>
-                                            <span t-if="block.settings.show_qty" t-out="line.qty + ' x '"/>
-                                            <span t-if="block.settings.show_unit_price" t-out="formatCurrency(getLinePrice(line))"/>
-                                            <span t-if="block.settings.show_discount and line.discount" class="text-muted ms-1" t-out="'(-' + line.discount + '%)'"/>
+                                            <span t-if="block.settings.show_qty" t-out="getLineQty(line) + ' x '"/>
+                                            <span t-if="block.settings.show_unit_price" t-out="getLinePrice(line)"/>
+                                            <span t-if="block.settings.show_discount and getLineDiscount(line)" class="text-muted ms-1" t-out="'(-' + getLineDiscount(line) + '%)'"/>
                                         </span>
-                                        <span t-if="block.settings.show_total" class="fw-bold" t-out="formatCurrency(getLineTotal(line))"/>
+                                        <span t-if="block.settings.show_total" class="fw-bold" t-out="getLineTotal(line)"/>
                                     </div>
-                                    <div t-if="block.settings.show_notes and (line.customerNote or line.note)" class="item-note text-muted">
+                                    <div t-if="block.settings.show_notes and getLineNote(line)" class="item-note text-muted">
                                         <i class="fa fa-sticky-note-o me-1"/>
-                                        <t t-out="line.customerNote || line.note"/>
+                                        <t t-out="getLineNote(line)"/>
                                     </div>
                                 </t>
                                 <!-- Compact Mode -->
                                 <t t-else="">
                                     <div class="item-details">
                                         <span class="text-truncate me-2">
-                                            <span t-if="block.settings.show_qty" class="fw-bold" t-out="line.qty + 'x '"/>
+                                            <span t-if="block.settings.show_qty" class="fw-bold" t-out="getLineQty(line) + 'x '"/>
                                             <span t-out="getLineName(line)"/>
                                         </span>
-                                        <span t-if="block.settings.show_total" class="fw-bold text-nowrap" t-out="formatCurrency(getLineTotal(line))"/>
+                                        <span t-if="block.settings.show_total" class="fw-bold text-nowrap" t-out="getLineTotal(line)"/>
                                     </div>
                                 </t>
 
@@ -133,32 +133,31 @@
                 <t t-if="block.type === 'totals'">
                     <div t-attf-class="ara-receipt-block ara-receipt-totals margin-{{ block.settings.margin_bottom || 'small' }}">
                         <!-- Subtotal -->
-                        <div t-if="block.settings.show_subtotal and order.priceExcl !== undefined" class="total-row">
+                        <t t-set="subtot" t-value="getSubtotal()"/>
+                        <div t-if="block.settings.show_subtotal and subtot" class="total-row">
                             <span>Subtotal</span>
-                            <span t-out="formatCurrency(order.priceExcl)"/>
+                            <span t-out="subtot"/>
                         </div>
                         <!-- Taxes Details -->
                         <t t-if="block.settings.show_taxes">
-                            <t t-set="taxTotals" t-value="getTaxTotals()"/>
-                            <t t-if="taxTotals and taxTotals.has_tax_groups">
-                                <t t-foreach="taxTotals.subtotals" t-as="subtotal" t-key="subtotal.name">
-                                    <div t-foreach="subtotal.tax_groups" t-as="tax_group" t-key="tax_group.id" class="total-row" style="font-size: 0.9em;">
-                                        <span t-out="tax_group.group_name"/>
-                                        <span t-out="formatCurrency(tax_group.tax_amount_currency)"/>
-                                    </div>
-                                </t>
+                            <t t-foreach="getTaxList()" t-as="tax" t-key="tax_index">
+                                <div class="total-row" style="font-size: 0.9em;">
+                                    <span t-out="tax.name"/>
+                                    <span t-out="formatCurrency(tax.amount)"/>
+                                </div>
                             </t>
                         </t>
                         <!-- Total Discount -->
                         <t t-set="totDiscount" t-value="getTotalDiscount()"/>
                         <div t-if="block.settings.show_discount and totDiscount" class="total-row text-success">
                             <span>Discount</span>
-                            <span t-out="'- ' + formatCurrency(totDiscount)"/>
+                            <span t-out="'- ' + totDiscount"/>
                         </div>
                         <!-- Rounding -->
-                        <div t-if="block.settings.show_rounding and order.appliedRounding" class="total-row text-muted" style="font-size: 0.85em;">
+                        <t t-set="rnd" t-value="getRounding()"/>
+                        <div t-if="block.settings.show_rounding and rnd" class="total-row text-muted" style="font-size: 0.85em;">
                             <span>Rounding</span>
-                            <span t-out="formatCurrency(order.appliedRounding)"/>
+                            <span t-out="rnd"/>
                         </div>
                         <!-- Grand Total -->
                         <div t-attf-class="grand-total-row size-{{ block.settings.total_size || 'large' }} {{ block.settings.total_bold ? 'fw-bold' : '' }}">
@@ -167,9 +166,9 @@
                         </div>
                         <!-- Payments -->
                         <t t-if="block.settings.show_payments">
-                            <div t-foreach="paymentLines" t-as="p" t-key="p_index" class="total-row pt-1" style="font-size: 0.9em;">
-                                <span t-out="p.payment_method_id.name"/>
-                                <span t-out="formatCurrency(p.getAmount ? p.getAmount() : p.amount)"/>
+                            <div t-foreach="getPaymentList()" t-as="p" t-key="p_index" class="total-row pt-1" style="font-size: 0.9em;">
+                                <span t-out="p.name"/>
+                                <span t-out="formatCurrency(p.amount)"/>
                             </div>
                         </t>
                         <!-- Change -->
@@ -199,11 +198,11 @@
                 <!-- 8. BARCODE BLOCK -->
                 <t t-if="block.type === 'barcode'">
                     <div t-attf-class="ara-receipt-block ara-receipt-barcode text-{{ block.settings.align || 'center' }} margin-{{ block.settings.margin_bottom || 'small' }}">
-                        <img t-att-src="getBarcodeUrl(order.pos_reference || order.name)"
+                        <img t-att-src="getBarcodeUrl(receiptRef)"
                              alt="Barcode"
                              class="barcode-img"
                              t-att-style="'height: ' + (block.settings.height || 40) + 'px;'"/>
-                        <div t-if="block.settings.show_human_readable" class="barcode-text" t-out="order.pos_reference || order.name"/>
+                        <div t-if="block.settings.show_human_readable" class="barcode-text" t-out="receiptRef"/>
                     </div>
                 </t>
 

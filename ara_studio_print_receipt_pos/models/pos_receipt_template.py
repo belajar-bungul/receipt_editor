@@ -297,34 +297,20 @@ class AraPosReceiptTemplate(models.Model):
             record.layout_json = record._get_default_layout_json()
         return True
 
-    def write(self, vals):
-        res = super().write(vals)
-        # Invalidate POS cache so frontend reload immediately picks up saved changes
-        self._invalidate_pos_cache()
-        return res
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super().create(vals_list)
-        records._invalidate_pos_cache()
-        return records
-
-    def _invalidate_pos_cache(self):
-        company_ids = self.mapped('company_id').ids or [self.env.company.id]
-        configs = self.env['pos.config'].sudo().search([
-            '|',
-            ('ara_receipt_template_id', 'in', self.ids),
-            ('company_id', 'in', company_ids)
-        ])
-        if configs:
-            configs.write({'last_data_change': fields.Datetime.now()})
+    @api.model
+    def _load_pos_data_domain(self, data):
+        config_data = data.get('pos.config', {}).get('data', [])
+        company_id = False
+        if config_data:
+            config_id = config_data[0].get('id')
+            if config_id:
+                company_id = self.env['pos.config'].browse(config_id).company_id.id
+        if not company_id:
+            company_id = self.env.company.id
+        return [('company_id', 'in', [False, company_id]), ('active', '=', True)]
 
     @api.model
-    def _load_pos_data_domain(self, data, config):
-        return [('company_id', 'in', [False, config.company_id.id]), ('active', '=', True)]
-
-    @api.model
-    def _load_pos_data_fields(self, config):
+    def _load_pos_data_fields(self, config_id):
         return [
             'id', 'name', 'paper_width', 'font_family', 'font_size_base',
             'line_spacing', 'show_logo', 'logo_width', 'custom_css', 'layout_json'

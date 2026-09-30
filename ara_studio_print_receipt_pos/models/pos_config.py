@@ -10,6 +10,12 @@ class PosConfig(models.Model):
         help='Select a custom receipt design created with Ara Receipt Studio.'
     )
 
+    def _load_pos_data_fields(self, config_id):
+        params = super()._load_pos_data_fields(config_id)
+        if params and 'ara_receipt_template_id' not in params:
+            params.append('ara_receipt_template_id')
+        return params
+
 
     def action_open_receipt_studio(self):
         """ Open linked receipt template in Studio, or select an existing template """

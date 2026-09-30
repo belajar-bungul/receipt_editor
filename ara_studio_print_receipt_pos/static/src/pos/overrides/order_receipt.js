@@ -1,10 +1,36 @@
 /** @odoo-module **/
 
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
+import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { patch } from "@web/core/utils/patch";
 import { AraCustomReceipt } from "../ara_custom_receipt/ara_custom_receipt";
-import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { usePos } from "@point_of_sale/app/store/pos_hook";
 import { useState, onWillUnmount } from "@odoo/owl";
+
+// Patch PosOrder to automatically include the receipt template in printing export data
+patch(PosOrder.prototype, {
+    export_for_printing() {
+        const result = super.export_for_printing(...arguments);
+        try {
+            const config = this.config;
+            const templateModel = this.models?.["ara.pos.receipt.template"];
+            const templateRef = config?.ara_receipt_template_id;
+            const templateId = templateRef ? (typeof templateRef === "object" ? templateRef.id || templateRef[0] : templateRef) : null;
+            let template = null;
+            if (templateModel && templateId) {
+                template = templateModel.get(templateId);
+            } else if (templateModel) {
+                template = templateModel.getFirst();
+            }
+            if (template) {
+                result.ara_receipt_template = template.serialize ? template.serialize() : template;
+            }
+        } catch (e) {
+            console.warn("AraReceiptStudio: Could not attach template to printing data:", e);
+        }
+        return result;
+    },
+});
 
 patch(OrderReceipt.prototype, {
     setup() {
@@ -27,7 +53,7 @@ patch(OrderReceipt.prototype, {
             this._studioChannel.onmessage = (event) => {
                 if (event.data && event.data.type === "RECEIPT_TEMPLATE_UPDATED") {
                     const updatedTmpl = event.data.template;
-                    const config = this.order?.config || this.pos?.config;
+                    const config = this.pos?.config;
                     const currentConfigId = config?.id;
 
                     // If posConfigIds are specified, check if this POS is targeted
@@ -85,9 +111,19 @@ patch(OrderReceipt.prototype, {
     get customTemplate() {
         // Track reactivity
         const _tick = this.araReceiptState?.updateTick;
-        const liveTmpl = this.araReceiptState?.liveTemplate || this._getLatestSavedTemplate();
+        const liveTmpl = this.araReceiptState?.liveTemplate;
 
-        const config = this.order?.config || this.pos?.config;
+        // 1. If we have a live template freshly saved from Studio:
+        if (liveTmpl) {
+            return liveTmpl;
+        }
+
+        // 2. Attached to data during export_for_printing
+        if (this.props?.data?.ara_receipt_template) {
+            return this.props.data.ara_receipt_template;
+        }
+
+        const config = this.pos?.config;
         const templateModel =
             this.pos?.models?.["ara.pos.receipt.template"] ||
             this.pos?.data?.models?.["ara.pos.receipt.template"];
@@ -95,15 +131,7 @@ patch(OrderReceipt.prototype, {
         const templateRef = config?.ara_receipt_template_id;
         const templateId = templateRef ? (typeof templateRef === "object" ? templateRef.id : templateRef) : null;
 
-        // 1. If we have a live template freshly saved from Studio:
-        if (liveTmpl) {
-            // If this POS specifically uses this template ID, or has no explicit template assigned:
-            if (!templateId || liveTmpl.id === templateId) {
-                return liveTmpl;
-            }
-        }
-
-        // 2. Case: templateRef is already an AraPosReceiptTemplate instance
+        // 3. Case: templateRef is already an AraPosReceiptTemplate instance
         if (templateRef) {
             if (typeof templateRef === "object" && templateRef.layout_json) {
                 return templateRef;
@@ -114,20 +142,27 @@ patch(OrderReceipt.prototype, {
             }
         }
 
-        // 3. Fallback: If config has no explicit template assigned,
-        // automatically use live template if available, else first active template
-        if (liveTmpl) {
-            return liveTmpl;
-        }
-
+        // 4. Fallback: First template from in-memory POS model
         if (templateModel) {
             const tmpl = templateModel.getFirst();
             if (tmpl) return tmpl;
+        }
+
+        // 5. Fallback: Check localStorage cached template
+        const cached = this._getLatestSavedTemplate();
+        if (cached) {
+            return cached;
         }
 
         return null;
     },
 });
 
-// Register custom receipt component
-Object.assign(OrderReceipt.components, { AraCustomReceipt });
+// Register custom receipt component and guarantee prototype methods
+OrderReceipt.components = {
+    ...OrderReceipt.components,
+    AraCustomReceipt,
+};
+OrderReceipt.prototype.hasCustomReceipt = function () {
+    return Boolean(this.customTemplate);
+};
